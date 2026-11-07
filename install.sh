@@ -55,6 +55,9 @@ DESKTOP_DIR="${HOME}/Desktop"
 LOCAL_APP_DIR="${HOME}/.local/share/applications"
 mkdir -p "${LOCAL_APP_DIR}"
 
+# Remove any legacy duplicate desktop entries
+rm -f "${LOCAL_APP_DIR}/apexminer.desktop" "${DESKTOP_DIR}/apexminer.desktop" 2>/dev/null || true
+
 ICON_PATH="${SCRIPT_DIR}/icon.png"
 
 # ApexMiner Studio Desktop Entry
