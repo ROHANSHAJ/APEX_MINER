@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ApexMiner // Cyber HUD Cockpit</title>
+    <style>
+        :root {
+            --bg-color: #07090e;
+            --panel-bg: rgba(16, 22, 36, 0.75);
+            --border-glow: rgba(56, 189, 248, 0.35);
+            --neon-blue: #00f0ff;
+            --neon-green: #00ff88;
+            --neon-gold: #ffb800;
+            --neon-red: #ff3366;
+            --text-dim: #64748b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: #e2e8f0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Matrix / Particle Background Canvas */
+        #bgCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.45;
+            pointer-events: none;
+        }
+
+        /* Top HUD Bar */
+        .hud-header {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 24px;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.9) 0%, rgba(15, 23, 42, 0.4) 100%);
+            border-bottom: 1px solid var(--border-glow);
+            backdrop-filter: blur(10px);
+        }
+
+        .hud-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: var(--neon-blue);
+            text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+        }
+
+        .hud-status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+            background: rgba(0, 255, 136, 0.15);
+            border: 1px solid var(--neon-green);
+            color: var(--neon-green);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--neon-green);
+            box-shadow: 0 0 8px var(--neon-green);
+            animation: pulse 1.2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.6; }
+            50% { transform: scale(1.4); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.6; }
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-hud {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid var(--border-glow);
+            color: #94a3b8;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-hud:hover {
+            border-color: var(--neon-blue);
+            color: #fff;
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+        }
+
+        /* Main Cockpit Layout */
+        .cockpit-container {
+            position: relative;
+            z-index: 10;
+            flex: 1;
+            display: grid;
+            grid-template-columns: 320px 1fr 340px;
+            gap: 16px;
+            padding: 16px 24px;
+            overflow: hidden;
+        }
+
+        /* Generic Pod Panel */
+        .hud-pod {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-glow);
+            border-radius: 12px;
+            backdrop-filter: blur(12px);
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: inset 0 0 20px rgba(0, 240, 255, 0.05);
+            position: relative;
+        }
+
+        .pod-title {
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            color: #94a3b8;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 8px;
+            margin-bottom: 14px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Left Pod: GPU Dial */
+        .gauge-container {
+            position: relative;
+            width: 220px;
+            height: 140px;
+            margin: 0 auto;
+        }
+
+        .gauge-svg {
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+        }
+
+        .gauge-val-display {
+            position: absolute;
+            bottom: 4px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+        }
+
+        .gauge-big-num {
+            font-size: 28px;
+            font-weight: 900;
+            color: var(--neon-blue);
+            text-shadow: 0 0 12px rgba(0, 240, 255, 0.5);
+        }
+
+        .gpu-stats-list {
+            margin-top: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+
+        .stat-label { color: #94a3b8; }
+        .stat-val { font-weight: 700; color: #fff; }
+
+        .progress-track {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--neon-blue), var(--neon-green));
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+
+        /* Center Pod: 3D Blockchain Cube & Earnings */
+        .center-pod {
+            align-items: center;
+            justify-content: space-between;
+            text-align: center;
+        }
+
+        /* 3D Rotating Blockchain Cube */
+        .cube-scene {
+            width: 120px;
+            height: 120px;
+            perspective: 500px;
+            margin: 10px auto;
+            cursor: pointer;
+        }
+
+        .cube {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: rotateCube 14s infinite linear;
+        }
+
+        @keyframes rotateCube {
+            0% { transform: rotateX(20deg) rotateY(0deg); }
+            100% { transform: rotateX(20deg) rotateY(360deg); }
+        }
+
+        .cube-face {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border: 2px solid var(--neon-blue);
+            background: rgba(0, 240, 255, 0.08);
+            box-shadow: inset 0 0 15px rgba(0, 240, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: var(--neon-gold);
+            text-shadow: 0 0 10px var(--neon-gold);
+        }
+
+        .face-front  { transform: rotateY(  0deg) translateZ(60px); }
+        .face-back   { transform: rotateY(180deg) translateZ(60px); }
+        .face-right  { transform: rotateY( 90deg) translateZ(60px); }
+        .face-left   { transform: rotateY(-90deg) translateZ(60px); }
+        .face-top    { transform: rotateX( 90deg) translateZ(60px); }
+        .face-bottom { transform: rotateX(-90deg) translateZ(60px); }
+
+        /* Earnings Display */
+        .earnings-card {
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 10px;
+            padding: 12px 24px;
+            width: 100%;
+            max-width: 440px;
+            margin: 0 auto;
+        }
+
+        .earnings-sats {
+            font-size: 28px;
+            font-weight: 900;
+            color: var(--neon-gold);
+            letter-spacing: 1px;
+            text-shadow: 0 0 12px rgba(255, 184, 0, 0.5);
+        }
+
+        .earnings-inr {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--neon-green);
+            margin-top: 4px;
+        }
+
+        /* Real-Time Waveform Canvas */
+        .wave-canvas-container {
+            width: 100%;
+            height: 70px;
+            margin-top: 10px;
+        }
+
+        #waveCanvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Right Pod: CPU 12-Thread Equalizer */
+        .cpu-threads-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 4px;
+            height: 110px;
+            align-items: flex-end;
+            margin-top: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 6px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .thread-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+            justify-content: flex-end;
+        }
+
+        .thread-bar {
+            width: 100%;
+            background: linear-gradient(180deg, var(--neon-green) 0%, rgba(0, 255, 136, 0.2) 100%);
+            border-radius: 2px;
+            min-height: 4px;
+            transition: height 0.3s ease;
+            box-shadow: 0 0 6px rgba(0, 255, 136, 0.4);
+        }
+
+        .thread-num {
+            font-size: 9px;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        /* Bottom Console Log */
+        .hud-console {
+            position: relative;
+            z-index: 10;
+            margin: 0 24px 16px 24px;
+            background: rgba(10, 14, 23, 0.85);
+            border: 1px solid var(--border-glow);
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            color: var(--neon-green);
+            height: 60px;
+            overflow-y: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        .log-line {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            opacity: 0.9;
+        }
+
+        .log-time { color: var(--neon-blue); margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <canvas id="bgCanvas"></canvas>
+
+    <!-- Header Bar -->
+    <header class="hud-header">
+        <div class="hud-title">
+            <span>⚡ APEXMINER CYBER HUD</span>
+            <span style="font-size: 11px; color: var(--text-dim); font-weight: 500;">// UNIVERSAL GPU & CPU COCKPIT</span>
+        </div>
+        <div id="statusBadge" class="hud-status-badge">
+            <div class="pulse-dot"></div>
+            <span id="statusText">MINING ACTIVE</span>
+        </div>
+        <div class="header-controls">
+            <button id="btnSound" class="btn-hud" onclick="toggleSound()">🔊 SOUND: ON</button>
+            <button class="btn-hud" onclick="toggleFullscreen()">⛶ FULLSCREEN (F11)</button>
+        </div>
+    </header>
+
+    <!-- Cockpit Main Grid -->
+    <main class="cockpit-container">
+        <!-- Left: GPU Cockpit -->
+        <section class="hud-pod">
+            <div class="pod-title">
+                <span>GPU INSTRUMENT</span>
+                <span id="gpuName">GTX 1650 (4GB)</span>
+            </div>
+
+            <!-- Dial Speedometer -->
+            <div class="gauge-container">
+                <svg class="gauge-svg" viewBox="0 0 200 120">
+                    <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="14" stroke-linecap="round"/>
+                    <path id="gaugeArc" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--neon-blue)" stroke-width="14" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="65" style="transition: stroke-dashoffset 0.6s ease;"/>
+                </svg>
+                <div class="gauge-val-display">
+                    <div id="bigHashrate" class="gauge-big-num">21.98</div>
+                    <div style="font-size: 11px; color: var(--text-dim); font-weight: 700;">MEGAHASH / SEC</div>
+                </div>
+            </div>
+
+            <div class="gpu-stats-list">
+                <div>
+                    <div class="stat-row">
+                        <span class="stat-label">Core Temperature</span>
+                        <span id="gpuTemp" class="stat-val" style="color: var(--neon-green);">55 °C</span>
+                    </div>
+                    <div class="progress-track"><div id="tempBar" class="progress-bar" style="width: 55%; background: var(--neon-green);"></div></div>
+                </div>
+
+                <div>
+                    <div class="stat-row">
+                        <span class="stat-label">Power Consumption</span>
+                        <span id="gpuPower" class="stat-val">49.0 W / 50W</span>
+                    </div>
+                    <div class="progress-track"><div id="powerBar" class="progress-bar" style="width: 98%;"></div></div>
+                </div>
+
+                <div>
+                    <div class="stat-row">
+                        <span class="stat-label">VRAM Usage</span>
+                        <span id="gpuVram" class="stat-val">2309 / 4096 MB</span>
+                    </div>
+                    <div class="progress-track"><div id="vramBar" class="progress-bar" style="width: 56%; background: #c084fc;"></div></div>
+                </div>
+
+                <div>
+                    <div class="stat-row">
+                        <span class="stat-label">Algorithm & Kernel</span>
+                        <span class="stat-val" style="color: var(--neon-blue);">NexaPow (K1)</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Center: 3D Blockchain Cube & Earnings -->
+        <section class="hud-pod center-pod">
+            <div class="pod-title" style="width: 100%;">
+                <span>BLOCKCHAIN CORE & ACCUMULATOR</span>
+                <span id="sessionClock">UPTIME: 00:14:22</span>
+            </div>
+
+            <!-- 3D Rotating Bitcoin Cube -->
+            <div class="cube-scene" onclick="triggerCelebration(true)">
+                <div class="cube">
+                    <div class="cube-face face-front">₿</div>
+                    <div class="cube-face face-back">⚡</div>
+                    <div class="cube-face face-right">22M</div>
+                    <div class="cube-face face-left">GPU</div>
+                    <div class="cube-face face-top">🔒</div>
+                    <div class="cube-face face-bottom">NEXA</div>
+                </div>
+            </div>
+
+            <!-- Real-Time Earnings Accumulator -->
+            <div class="earnings-card">
+                <div style="font-size: 11px; font-weight: 700; color: #94a3b8; margin-bottom: 2px;">SESSION EARNINGS ACCUMULATOR</div>
+                <div id="earnBtc" class="earnings-sats">0.00000125 BTC</div>
+                <div id="earnInr" class="earnings-inr">≈ ₹8.89 INR (125 Sats)</div>
+            </div>
+
+            <!-- Hashrate Pulse Waveform -->
+            <div class="wave-canvas-container">
+                <canvas id="waveCanvas"></canvas>
+            </div>
+        </section>
+
+        <!-- Right: CPU Cockpit -->
+        <section class="hud-pod">
+            <div class="pod-title">
+                <span>CPU DUAL-MINING ENGINE</span>
+                <span>RYZEN 5 5600H</span>
+            </div>
+
+            <div class="stat-row" style="margin-bottom: 4px;">
+                <span class="stat-label">12-Thread Activity</span>
+                <span id="cpuTotal" class="stat-val" style="color: var(--neon-green);">12% Total</span>
+            </div>
+
+            <!-- 12 Threads Visualizer Spectrum -->
+            <div id="cpuGrid" class="cpu-threads-grid">
+                <!-- Dynamically filled with 12 bars -->
+            </div>
+
+            <div class="gpu-stats-list" style="margin-top: 18px;">
+                <div>
+                    <div class="stat-row">
+                        <span class="stat-label">Accepted Shares</span>
+                        <span id="sharesAcc" class="stat-val" style="color: var(--neon-green);">12</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="stat-row">
+                        <span class="stat-label">Rejected Shares</span>
+                        <span id="sharesRej" class="stat-val" style="color: var(--neon-red);">0</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="stat-row">
+                        <span class="stat-label">Live BTC/INR Price</span>
+                        <span id="marketPrice" class="stat-val" style="color: var(--neon-gold);">1 BTC = ₹71.13 L</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="stat-row">
+                        <span class="stat-label">Payout Wallet</span>
+                        <span id="walletShort" class="stat-val" style="font-size: 11px; color: var(--neon-blue);">16hEbjnQ...</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Bottom Event Stream -->
+    <footer class="hud-console">
+        <div id="logLine1" class="log-line"><span class="log-time">[SYSTEM]</span> ApexMiner Studio Cyber HUD connected to local telemetry server.</div>
+        <div id="logLine2" class="log-line"><span class="log-time">[MINER]</span> Rigel active on NVIDIA GTX 1650: NexaPow difficulty 4.30G | 21.98 MH/s</div>
+    </footer>
+
+    <script>
+        // Web Audio Synth for sci-fi clicks
+        let audioCtx = null;
+        let soundEnabled = true;
+
+        function playShareSound() {
+            if (!soundEnabled) return;
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+                osc.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.12);
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.12);
+            } catch(e) {}
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            document.getElementById('btnSound').innerText = soundEnabled ? "🔊 SOUND: ON" : "🔇 SOUND: OFF";
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                document.exitFullscreen().catch(() => {});
+            }
+        }
+
+        // Particle Matrix Background
+        const bgCanvas = document.getElementById('bgCanvas');
+        const bgCtx = bgCanvas.getContext('2d');
+        let width = bgCanvas.width = window.innerWidth;
+        let height = bgCanvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            width = bgCanvas.width = window.innerWidth;
+            height = bgCanvas.height = window.innerHeight;
+        });
+
+        const particles = [];
+        for (let i = 0; i < 55; i++) {
+            particles.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                vx: (Math.random() - 0.5) * 0.8,
+                vy: (Math.random() - 0.5) * 0.8,
+                size: Math.random() * 2 + 1
+            });
+        }
+
+        function drawBackground() {
+            bgCtx.clearRect(0, 0, width, height);
+            bgCtx.fillStyle = 'rgba(0, 240, 255, 0.4)';
+            bgCtx.strokeStyle = 'rgba(0, 240, 255, 0.08)';
+
+            for (let i = 0; i < particles.length; i++) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                if (p.x < 0) p.x = width;
+                if (p.x > width) p.x = 0;
+                if (p.y < 0) p.y = height;
+                if (p.y > height) p.y = 0;
+
+                bgCtx.beginPath();
+                bgCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                bgCtx.fill();
+
+                for (let j = i + 1; j < particles.length; j++) {
+                    const p2 = particles[j];
+                    const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                    if (dist < 130) {
+                        bgCtx.beginPath();
+                        bgCtx.moveTo(p.x, p.y);
+                        bgCtx.lineTo(p2.x, p2.y);
+                        bgCtx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(drawBackground);
+        }
+        drawBackground();
+
+        // Waveform Oscilloscope
+        const waveCanvas = document.getElementById('waveCanvas');
+        const waveCtx = waveCanvas.getContext('2d');
+        let wavePhase = 0;
+
+        function drawWaveform() {
+            const w = waveCanvas.width = waveCanvas.clientWidth;
+            const h = waveCanvas.height = waveCanvas.clientHeight;
+            waveCtx.clearRect(0, 0, w, h);
+
+            waveCtx.beginPath();
+            waveCtx.lineWidth = 2.5;
+            waveCtx.strokeStyle = '#00f0ff';
+            waveCtx.shadowColor = '#00f0ff';
+            waveCtx.shadowBlur = 8;
+
+            for (let x = 0; x < w; x++) {
+                const y = (h / 2) + Math.sin((x * 0.04) + wavePhase) * 16 * Math.sin(x * 0.01 + wavePhase * 0.5);
+                if (x === 0) waveCtx.moveTo(x, y);
+                else waveCtx.lineTo(x, y);
+            }
+            waveCtx.stroke();
+            wavePhase += 0.08;
+            requestAnimationFrame(drawWaveform);
+        }
+        drawWaveform();
+
+        // Populate 12 CPU Threads
+        const cpuGrid = document.getElementById('cpuGrid');
+        for (let i = 0; i < 12; i++) {
+            const col = document.createElement('div');
+            col.className = 'thread-col';
+            col.innerHTML = `
+                <div id="tBar${i}" class="thread-bar" style="height: 15%;"></div>
+                <div class="thread-num">T${i+1}</div>
+            `;
+            cpuGrid.appendChild(col);
+        }
+
+        // Live Poll Telemetry from /api/stats
+        let lastAccepted = 0;
+
+        async function updateTelemetry() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+
+                // Hashrate Gauge Arc (251.2 total stroke)
+                const hr = data.hashrate_mhs || 21.98;
+                document.getElementById('bigHashrate').innerText = hr.toFixed(2);
+                const pct = Math.min(1.0, hr / 30.0);
+                const offset = 251.2 - (pct * 251.2 * 0.75);
+                document.getElementById('gaugeArc').style.strokeDashoffset = offset;
+
+                // GPU Stats
+                const gpu = data.gpu;
+                if (gpu.name) {
+                    document.getElementById('gpuName').innerText = gpu.name;
+                }
+                document.getElementById('gpuTemp').innerText = `${gpu.temp} °C`;
+                if (gpu.power_cap && gpu.power_cap > 0) {
+                    document.getElementById('gpuPower').innerText = `${gpu.power.toFixed(1)} W / ${Math.round(gpu.power_cap)}W`;
+                    document.getElementById('powerBar').style.width = `${Math.min(100, (gpu.power / gpu.power_cap) * 100)}%`;
+                } else {
+                    document.getElementById('gpuPower').innerText = `${gpu.power.toFixed(1)} W`;
+                    document.getElementById('powerBar').style.width = `${Math.min(100, (gpu.power / 100) * 100)}%`;
+                }
+                document.getElementById('gpuVram').innerText = `${gpu.vram_used} / ${gpu.vram_total} MB`;
+
+                document.getElementById('tempBar').style.width = `${Math.min(100, (gpu.temp / 80) * 100)}%`;
+                document.getElementById('vramBar').style.width = `${Math.min(100, (gpu.vram_used / gpu.vram_total) * 100)}%`;
+
+                // CPU Threads
+                const cpu = data.cpu;
+                document.getElementById('cpuTotal').innerText = `${cpu.total_percent}% Load`;
+                if (cpu.per_core) {
+                    cpu.per_core.forEach((val, idx) => {
+                        const el = document.getElementById(`tBar${idx}`);
+                        if (el) el.style.height = `${Math.max(6, val)}%`;
+                    });
+                }
+
+                // Earnings & Clock
+                const earn = data.session_earnings;
+                document.getElementById('earnBtc').innerText = `${earn.btc} BTC`;
+                document.getElementById('earnInr').innerText = `≈ ₹${earn.inr.toFixed(2)} INR (${earn.satoshis} Sats)`;
+
+                // Format Uptime
+                const s = data.uptime;
+                const hh = String(Math.floor(s / 3600)).padStart(2, '0');
+                const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+                const ss = String(s % 60).padStart(2, '0');
+                document.getElementById('sessionClock').innerText = `UPTIME: ${hh}:${mm}:${ss}`;
+
+                // Market Price
+                const mkt = data.market;
+                document.getElementById('marketPrice').innerText = `1 BTC = ₹${(mkt.btc_inr / 100000).toFixed(2)} Lakh`;
+                
+                // Wallet
+                const w = data.wallet || "16hEbjnQ...";
+                document.getElementById('walletShort').innerText = w.substring(0, 10) + "...";
+
+                // Check for new shares
+                if (data.shares_accepted > lastAccepted) {
+                    playShareSound();
+                    triggerCelebration();
+                    lastAccepted = data.shares_accepted;
+                }
+                document.getElementById('sharesAcc').innerText = data.shares_accepted;
+                document.getElementById('sharesRej').innerText = data.shares_rejected;
+
+            } catch (err) {
+                // If offline, animate simulated pulses
+                const simHr = (21.8 + Math.random() * 0.4).toFixed(2);
+                document.getElementById('bigHashrate').innerText = simHr;
+            }
+        }
+
+        setInterval(updateTelemetry, 1000);
+        updateTelemetry();
+
+        function triggerCelebration(playSound = false) {
+            if (playSound) playShareSound();
+            const cube = document.querySelector('.cube');
+            cube.style.animation = 'none';
+            void cube.offsetWidth;
+            cube.style.animation = 'rotateCube 3s ease-out';
+            setTimeout(() => { cube.style.animation = 'rotateCube 14s infinite linear'; }, 3000);
+        }
+    </script>
+</body>
+</html>

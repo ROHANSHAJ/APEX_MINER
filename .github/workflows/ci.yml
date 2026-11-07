@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate:
+    name: Build & Code Verification (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install System Dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y python3-tk
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Syntax & Compilation Check
+        run: |
+          python -m py_compile setup_binaries.py
+          python -m py_compile app/main.py
+          python -m py_compile app/hardware_detector.py
+          python -m py_compile app/telemetry.py
+          python -m py_compile app/miner_controller.py
+          python -m py_compile app/presets.py
+          python -m py_compile app/pool_tracker.py
+          python -m py_compile app/config_manager.py
+          python -m py_compile app/binary_downloader.py
+          python -m py_compile visualizer/server.py
+
+      - name: Verify Module Imports & Engine Integrity
+        run: |
+          python -c "import sys; sys.path.insert(0, 'app'); from hardware_detector import HardwareDetector; hw = HardwareDetector(); print('CPU:', hw.cpu); print('GPU Count:', len(hw.gpus))"
+          python -c "import sys; sys.path.insert(0, 'app'); from presets import PRESETS; print(f'Loaded {len(PRESETS)} presets successfully.')"
+          python -c "import sys; sys.path.insert(0, 'app'); from pool_tracker import validate_btc_address; assert validate_btc_address('16hEbjnQUr4KTk1mWdxktun12LbJ6942N7')[0] is True; print('Address validator passed.')"

@@ -1,0 +1,2 @@
+# Keep bin/ directory in git repository.
+# Mining binaries (rigel, xmrig) are dynamically downloaded via setup_binaries.py.
