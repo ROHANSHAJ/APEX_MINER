@@ -83,6 +83,28 @@ def get_live_metrics():
     except Exception:
         pass
 
+    rigel_accepted = shared_state["shares_accepted"]
+    rigel_rejected = shared_state["shares_rejected"]
+    rigel_hashrate = 21.98 if is_rigel_running else 0.0
+
+    if is_rigel_running:
+        try:
+            req = urllib.request.Request("http://127.0.0.1:5000/api/v1/threads")
+            with urllib.request.urlopen(req, timeout=0.3) as r:
+                rdata = json.loads(r.read())
+                sol = rdata.get("solution_stat", {})
+                if "nexapow" in sol and isinstance(sol["nexapow"], dict):
+                    rigel_accepted = sol["nexapow"].get("accepted", 0)
+                    rigel_rejected = sol["nexapow"].get("rejected", 0)
+                elif "accepted" in sol:
+                    rigel_accepted = sol.get("accepted", 0)
+                    rigel_rejected = sol.get("rejected", 0)
+                hr = rdata.get("hashrate", {})
+                if "nexapow" in hr and float(hr["nexapow"]) > 0:
+                    rigel_hashrate = round(float(hr["nexapow"]) / 1e6, 2)
+        except Exception:
+            pass
+
     state = "MINING ACTIVE" if is_rigel_running else shared_state["miner_state"]
 
     # CPU Stats
@@ -102,9 +124,9 @@ def get_live_metrics():
         "algorithm": "NexaPow",
         "payout_coin": "Bitcoin (BTC)",
         "wallet": cfg.get("wallet_address", "16hEbjnQUr4KTk1mWdxktun12LbJ6942N7"),
-        "hashrate_mhs": 21.98 if is_rigel_running else 0.0,
-        "shares_accepted": shared_state["shares_accepted"],
-        "shares_rejected": shared_state["shares_rejected"],
+        "hashrate_mhs": rigel_hashrate,
+        "shares_accepted": rigel_accepted,
+        "shares_rejected": rigel_rejected,
         "uptime": uptime,
         "gpu": gpu_stats,
         "cpu": {
